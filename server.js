@@ -3,6 +3,8 @@ var mssql = require('mssql');
 var bodyParser = require('body-parser');
 var path = require('path');
 var session = require('express-session');
+const multer = require('multer');
+const upload = multer({ dest: 'imgs/' });
 
 
 
@@ -33,6 +35,10 @@ app.use(bodyParser.urlencoded({ extended: true }));
 admin.use(bodyParser.urlencoded({ extended: true }));
 admin.use(bodyParser.json());
 user.use(bodyParser.urlencoded({ extended: true }));
+app.use('/static', express.static('imgs'));
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views')); // Убедитесь, что у вас есть папка views
+
 
 
 app.use(express.static(path.join(__dirname)));
@@ -116,13 +122,15 @@ app.post('/log-user', async (req, res) => {
         }
 
         if (resultLoginAdmin.recordset[0].count > 0) {
-            return res.redirect('/admin');
+            req.session.isAdmin = true;
+            return res.redirect('/pizzas');
         }
 
         if (resultLoginUser.recordset[0].count > 0) {
+            req.session.isAdmin = false;
             console.log("Login:", login);
             req.session.userLogin = login;
-            return res.redirect('/user');
+            return res.redirect('/pizzas');
         }
 
     } catch (error) {
@@ -132,6 +140,42 @@ app.post('/log-user', async (req, res) => {
         await connection.close();
     }
 });
+admin.get('/pizza-panel', (req, res) => {
+    if (!req.session.isAdmin) {
+        return res.status(403).send('Доступ запрещен. Вы не администратор.');
+    }
+    res.sendFile(path.join(__dirname, 'admin-pizza.html')); // Отправляем форму для добавления пиццы
+});
+
+// Маршрут для добавления новой пиццы
+admin.post('/add-pizza', upload.single('image'), async (req, res) => {
+    const { name, price, quantity } = req.body;
+
+    // Убедитесь, что req.file не undefined
+    if (!req.file) {
+        return res.status(400).send('Изображение не загружено');
+    }
+
+    const imageUrl = `/static/${req.file.filename}`; // Получаем имя файла
+
+    try {
+        await connection.connect();
+
+        await connection.request()
+            .input('name', mssql.VarChar, name)
+            .input('imageUrl', mssql.VarChar, imageUrl)
+            .input('price', mssql.Decimal, price)
+            .input('quantity', mssql.Int, quantity)
+            .query('INSERT INTO Pizzas (Name, ImageUrl, Price, Quantity) VALUES (@name, @imageUrl, @price, @quantity)');
+        return res.redirect('/pizzas');
+    } catch (error) {
+        console.error('Ошибка при добавлении пиццы:', error);
+        res.status(500).send('Ошибка при добавлении пиццы');
+    } finally {
+        await connection.close();
+    }
+});
+
 
 admin.post('/add-admin', async (req, res) => {
     console.log('Полученные данные:', req.body);
@@ -161,44 +205,47 @@ admin.post('/add-admin', async (req, res) => {
         await connection.close();
     }
 });
-admin.post('/all-users', async (req, res) => {
+app.get('/pizzas', async (req, res) => {
     try {
         await connection.connect();
 
-        const users = await connection.request().query('SELECT * FROM Users');
-        return res.json(users.recordset); // Возвращаем пользователей
+        // Получение всех пицц из таблицы Pizzas
+        const result = await connection.request().query('SELECT * FROM Pizzas');
+        const pizzas = result.recordset;
 
+        // Передаем список пицц и статус админа в шаблон
+        res.render('pizzas', {
+            pizzas,
+            isAdmin: req.session.isAdmin // Передаем флаг админа
+        });
     } catch (error) {
-        console.error('Ошибка при отображении пользователей:', error);
-        res.status(500).send('Ошибка при отображении пользователей');
+        console.error('Ошибка при получении пицц:', error);
+        res.status(500).send('Ошибка при получении пицц');
     } finally {
         await connection.close();
     }
 });
-user.post('/delete-user', async (req, res) => {
-    const login = req.session.userLogin;
 
-    if (!login) {
-        return res.status(403).send('Необходимо войти в систему, чтобы удалить пользователя.');
-    }
+admin.delete('/delete-pizza/:id', async (req, res) => {
+    const pizzaId = req.params.id;
 
     try {
         await connection.connect();
 
-        // Запрос для удаления пользователя по логину
+        // Удаление пиццы из базы данных по id
         await connection.request()
-            .input('login', mssql.VarChar, login)
-            .query('DELETE FROM Users WHERE Login = @login');
+            .input('id', mssql.Int, pizzaId)
+            .query('DELETE FROM Pizzas WHERE Id = @id');
 
-        return res.send('Пользователь успешно удален');
-
+        res.json({ success: true });
     } catch (error) {
-        console.error('Ошибка при удалении пользователя:', error);
-        res.status(500).send('Ошибка при удалении пользователя');
+        console.error('Ошибка при удалении пиццы:', error);
+        res.json({ success: false });
     } finally {
         await connection.close();
     }
 });
+
 // Запуск сервера
 app.listen(port, () => {
     console.log(`Сервер запущен на http://localhost:${port}`);

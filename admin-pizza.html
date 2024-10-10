@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Добавить пиццу</title>
+    <link rel="stylesheet" href="/admin-pizza-style.css">
+</head>
+<body>
+    <h1>Добавить новую пиццу</h1>
+    <form action="/admin/add-pizza" method="POST" enctype="multipart/form-data">
+    <input type="text" name="name" placeholder="Название пиццы" required>
+    <input type="file" name="image">
+    <input type="number" name="price" placeholder="Цена" required>
+    <input type="number" name="quantity" placeholder="Количество" required>
+    <button type="submit">Добавить пиццу</button>
+</form>
+
+</body>
+</html>

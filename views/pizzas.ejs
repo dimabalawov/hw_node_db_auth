@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Меню Пиццы</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <h1>Меню Пиццы</h1>
+    <% if (isAdmin) { %>
+      <button class="add-pizza" onclick="window.location.href='/admin/pizza-panel'">Добавить пиццу</button>
+    <% } %>
+    <button class="add-pizza" onclick="window.location.href='/'">Вернуться на страницу авторизации</button>
+    <div class="pizza-container">
+        <% pizzas.forEach(pizza => { %>
+            <div class="pizza-card">
+                <img src="<%= pizza.ImageUrl %>" alt="<%= pizza.Name %>">
+                <h2><%= pizza.Name %></h2>
+                <p class="price">Цена: $<%= pizza.Price %></p>
+                <p class="quantity">Количество: <%= pizza.Quantity %></p>
+                <button>Заказать</button>
+
+                <% if (isAdmin) { %>
+                    <button class="delete-button" onclick="confirmDelete(<%= pizza.Id %>)">Удалить</button>
+                <% } %>
+            </div>
+        <% }) %>
+    </div>
+
+    <script>
+        function confirmDelete(pizzaId) {
+            const confirmation = confirm("Ты точно хочешь удалить эту пиццу?");
+            if (confirmation) {
+                fetch(`/admin/delete-pizza/${pizzaId}`, {
+                    method: 'DELETE',
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert("Пицца успешно удалена");
+                        window.location.reload();
+                    } else {
+                        alert("Ошибка при удалении пиццы");
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                });
+            }
+        }
+    </script>
+</body>
+</html>
